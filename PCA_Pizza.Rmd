@@ -1,0 +1,154 @@
+---
+title: "PCA_Pizza"
+author: "Edward Guevel, Kayla Strunk, Teresa Vail"
+date: "6/01/2022"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(echo = TRUE)
+
+#First Load the tidyverse package, which contains a built-in function, prcomp(), that runs PCA analysis. 
+library(tidyverse)
+library(ggplot2)
+library(ggpubr)
+library(ggfortify)
+```
+
+## PCA Background
+Principal Component Analysis (PCA) is a dimension reduction technique. Analysis can help identify patterns in a data set and distill the variables down to their most prominent features so that the data is simplified without losing much of the data’s variability. PCA allows us to find a low-dimensional representation of our data set that contains as much of the variation as possible. PCA reduces the overall dimensional scope of the data set by only highlighting the interesting (high variance) components. 
+
+## Data Requirements
+
+-Data for the predictor variables must be numeric
+
+-Data must have no outcome variable
+
+-Must be some correlation (linear relationship) between predictor variables
+
+-Three or more independent predictor variables is encouraged
+
+## Pizza Dataset Information
+We will be using "pizza.csv" dataset that contains nutrient analysis of pizzas. Credit goes to Dhilip Subramanian on data.world (https://data.world/sdhilip/pizza-datasets)  
+
+The variables in the data set are:
+
+brand - Pizza brand (class label)
+
+id - Sample analyzed
+
+mois - Amount of water per 100 grams in the sample
+
+prot - Amount of protein per 100 grams in the sample
+
+fat - Amount of fat per 100 grams in the sample
+
+ash- Amount of ash per 100 grams in the sample (think burnt crust)
+
+sodium - Amount of sodium per 100 grams in the sample
+
+carb - Amount of carbohydrates per 100 grams in the sample
+
+cal - Amount of calories per 100 grams in the sample
+
+
+## Data Loading and Manipulation 
+
+```{r}
+#Code to load in the full dataset:
+pizza.complete<-read.csv("pizza.csv")
+head(pizza.complete)
+
+#Check the variable types in your data set:
+str(pizza.complete)
+```
+
+
+For PCA, we need our variables to be in numeric format. 
+
+When running the str() function above, we see that the brand name is "chr" for character. We do not care about the specific brands for running PCA in this example. We are looking for the overall trends of the various qualities of a pizza (moisture, protein, fat, etc.), so we can remove the brand names. 
+
+We can also remove the ID name, since it does not carry any useful information either. 
+
+```{r}
+#Code to remove brand name (row "brand") and ID (column "Id"):
+
+pizza <- subset(pizza.complete, select = -c(1,2))
+head(pizza)
+
+```
+Compare the pizza and the pizza.complete data sets above to ensure the brands and IDs were removed. 
+
+
+## Running PCA
+We are going to use the prcomp() from the tidyverse package. This function will take in the data set and by setting scale = TRUE we scale the data to have a mean = 0 and sd = 1. This allows us to standardize the data. 
+```{r}
+#set scale = TRUE so that all data are scaled to have a mean of 0 and sd=1 before calculating principle components
+pizza.pca <- prcomp(pizza, scale = TRUE)
+
+#Look at the different results given:
+names(pizza.pca)
+
+#Center and Scale components display the means and standard deviations of the variables that were used for scaling prior to implementing PCA. 
+pizza.pca$center
+pizza.pca$scale
+
+#PCA scores each principal component under column "x"
+# if you want the entire data set...
+# pizza.pca$x
+# for just the top section of the data set
+head(pizza.pca$x)
+
+#The rotation matrix provides the principal components. Each column is a principle component, and each row is the variable. The more a number is further away from 0, the more that variable contributes to the principle component.
+pizza.pca$rotation
+
+#Note that eigenvectors in R point to the negative direction by default. Therefore we must multiply our results by -1.
+pizza.pca$rotation <- -(pizza.pca$rotation)
+
+#We also need to reverse the scores
+pizza.pca$x <- -(pizza.pca$x)
+
+
+```
+
+By choosing a threshold, we can determine what variables are significant in the contribution to the principal component. The threshold is arbitrary; it's based more on the data set at hand and there is no rule of thumb. 
+
+## Calculate the Variance
+```{r}
+
+var_explained<- pizza.pca$sdev^2 / sum(pizza.pca$sdev^2)
+var_explained
+qplot(c(1:7), var_explained) + 
+  geom_line() + 
+  xlab("Principal Component") + 
+  ylab("Variance Explained") +
+  ggtitle("Scree Plot") +
+  ylim(0, 1)
+```
+
+
+Each variance above is associated with each principal component calculated. The first number above (.596) means that 59.6% of the total variance in the data set is captured in the first principal component. As you can see the variances of principal components 4 to 7 are very close to zero. From this we can gather that including these components in analysis would not provide much further insight into the variability of the overall data set. The first 3 principal components account for most of the variability of the data set. 
+
+Now we can plot the first two principle components using two ways: biplot and autoplot.  
+
+```{r}
+#Code to plot data:
+biplot(pizza.pca, scale = 0) 
+
+
+#for a better view of plot. Set scale = 0 so the scale is the same for both biplot and autoplot. 
+autoplot(pizza.pca, data = pizza.complete, color = 'brand', loadings = TRUE, loadings.label = TRUE, scale = 0 )
+
+# Pizza.pca rotation matrix
+(pizza.pca$rotation)
+```
+In the graphs above, each of the different pizzas are shown on a 2D space (black numbers). The pizzas (black numbers) that are close to each other in groups in the plot have similar data patterns. We can also see that some pizzas tend to be more associated with a pizza trait. We can see this in clusters of pizza (black numbers) around the pizza trait (red arrow). 
+
+As stated in the plot, the red arrows represent the pizza traits. There are three important characteristics of these arrows to note. The first is the direction of the vector in respect to the PC (x and y axes). The more parallel the vector is to a PC axis, the more it contributes to just that PC. The second is the length of the vector. The longer the vector is, the more variability it represents. The third/final characteristic is the angle between vectors. The smaller the angles between two vectors, the higher the positive correlation between the two variables there is. If the angle is right, then there is no correlation. Opposite angles mean high negative correlation. 
+
+## Results Explanation 
+
+Looking at the first principal component (PC1), in the results above, we select a comparative threshold of .4 to assess the trends across the predictors that experience the most variance. Since fat, ash, sodium, and carb are all above the absolute threshold value, we can say that fat, ash, and sodium all move together (increase or decrease), and with their movement, carb will go in the opposite direction. 
+
+92.3% of variability is accounted by the first two principal components. Looking at the graph above, we can see that the fat and sodium are highly correlated since the angle between them is super small. There is no correlation between calories and protein since the angle between is a right angle (90 degrees). Moisture is almost parallel to PC2 (the y-axis), so it is the highest contributor to PC2. 
